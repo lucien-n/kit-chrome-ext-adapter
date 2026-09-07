@@ -1,0 +1,21 @@
+{
+  "name": "kit-chrome-ext-adapter",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@sveltejs/adapter-static": "^3.0.1"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "sharp": "^0.35.4",
+    "tiny-glob": "^0.2.9"
+  },
+  "devDependencies": {
+    "typescript": "^6",
+    "@types/bun": "latest",
+    "@types/node": "^26.4.1"
+  }
+}
