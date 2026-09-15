@@ -1,5 +1,4 @@
 import staticAdapter from "@sveltejs/adapter-static";
-import type { Adapter, Builder } from "@sveltejs/kit";
 import * as cheerio from "cheerio";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
@@ -8,15 +7,20 @@ import glob from "tiny-glob";
 
 const PAGES_DIR = "./build";
 
-export interface AdapterOptions {
-  manifestFile?: string;
-  generateAppIconVariants?: boolean;
-}
+/**
+ * @typedef {Object} AdapterOptions
+ * @property {string} [manifestFile]
+ * @property {boolean} [generateAppIconVariants]
+ */
 
-export default function (options?: AdapterOptions): Adapter {
+/**
+ * @param {AdapterOptions} [options]
+ */
+export default function (options) {
   return {
     name: "Chrome Extension Adapter",
-    adapt: async (builder: Builder) => {
+
+    async adapt(builder) {
       await staticAdapter().adapt(builder);
 
       const manifestFile = options?.manifestFile ?? "manifest.json";
@@ -31,16 +35,24 @@ export default function (options?: AdapterOptions): Adapter {
   };
 }
 
-function hash(value: string): string {
+/**
+ * @param {string} value
+ */
+function hash(value) {
   let hash = 5381;
   let i = value.length;
 
-  while (i) hash = (hash * 33) ^ value.charCodeAt(--i);
+  while (i) {
+    hash = (hash * 33) ^ value.charCodeAt(--i);
+  }
 
   return (hash >>> 0).toString(36);
 }
 
-async function extractInlineScripts(builder: Builder): Promise<void> {
+/**
+ * @param {import("@sveltejs/kit").Builder} builder
+ */
+async function extractInlineScripts(builder) {
   const { log } = builder;
 
   const filePaths = await glob("**/*.html", {
@@ -57,6 +69,7 @@ async function extractInlineScripts(builder: Builder): Promise<void> {
 
     if (node.length > 0) {
       const scriptContent = node.html();
+
       if (!scriptContent) continue;
 
       const scriptHash = hash(scriptContent);
@@ -75,13 +88,15 @@ async function extractInlineScripts(builder: Builder): Promise<void> {
   }
 }
 
-async function writeExtensionManifest(
-  builder: Builder,
-  manifestFile: string,
-): Promise<void> {
+/**
+ * @param {import("@sveltejs/kit").Builder} builder
+ * @param {string} manifestFile
+ */
+async function writeExtensionManifest(builder, manifestFile) {
   const { log, getClientDirectory, copy } = builder;
 
   const manifestPath = path.join(getClientDirectory(), manifestFile);
+
   if (!existsSync(manifestPath)) {
     log.error(
       `Could not find ${manifestFile} in the client directory. Please ensure it exists.`,
@@ -94,11 +109,12 @@ async function writeExtensionManifest(
   log.success(`Copied ${manifestFile} to ${PAGES_DIR}`);
 }
 
-async function writeIconVariant(
-  sourcePath: string,
-  destPath: string,
-  size: number,
-): Promise<void> {
+/**
+ * @param {string} sourcePath
+ * @param {string} destPath
+ * @param {number} size
+ */
+async function writeIconVariant(sourcePath, destPath, size) {
   const source = readFileSync(sourcePath);
   const meta = await sharp(source).metadata();
 
@@ -116,21 +132,23 @@ async function writeIconVariant(
     .toFile(destPath);
 }
 
-interface Manifest {
-  action?: {
-    default_icon?: string | Record<string, string>;
-  };
-  icons?: Record<string, string>;
-  [key: string]: unknown;
-}
+/**
+ * @typedef {Object} Manifest
+ * @property {{
+ *   default_icon?: string | Record<string, string>
+ * }=} action
+ * @property {Record<string, string>=} icons
+ */
 
-async function generateAppIconVariants(
-  builder: Builder,
-  manifestFile: string,
-): Promise<void> {
+/**
+ * @param {import("@sveltejs/kit").Builder} builder
+ * @param {string} manifestFile
+ */
+async function generateAppIconVariants(builder, manifestFile) {
   const { log, getClientDirectory } = builder;
 
   const manifestPath = path.join(getClientDirectory(), manifestFile);
+
   if (!existsSync(manifestPath)) {
     log.error(
       `Could not find ${manifestFile} in the client directory. Please ensure it exists.`,
@@ -138,29 +156,37 @@ async function generateAppIconVariants(
     return;
   }
 
-  const manifest: Manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+  /** @type {Manifest} */
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
 
   if (manifest.action && typeof manifest.action.default_icon === "string") {
     const iconPath = path.join(
       getClientDirectory(),
       manifest.action.default_icon,
     );
+
     if (existsSync(iconPath)) {
       const sizes = [16, 24, 32];
-      const icons: Record<string, string> = {};
+      const icons = {};
 
       for (const size of sizes) {
         const fileName = `icon-${size}.png`;
+
         await writeIconVariant(iconPath, path.join(PAGES_DIR, fileName), size);
+
         icons[String(size)] = fileName;
       }
 
       const builtManifestPath = path.join(PAGES_DIR, "manifest.json");
-      const builtManifest: Manifest = JSON.parse(
+
+      /** @type {Manifest} */
+      const builtManifest = JSON.parse(
         readFileSync(builtManifestPath, "utf-8"),
       );
-      builtManifest.action!.default_icon = icons;
+
+      builtManifest.action.default_icon = icons;
       builtManifest.icons ??= icons;
+
       writeFileSync(
         builtManifestPath,
         JSON.stringify(builtManifest, null, 2),
@@ -177,7 +203,7 @@ async function generateAppIconVariants(
     }
   } else {
     log.info(
-      "Skipped generation of default icons since the `default_icon` field is an object.",
+      "Skipped generation of default icons since the \`default_icon\` field is an object.",
     );
   }
 }
